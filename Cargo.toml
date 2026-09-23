@@ -2,5 +2,8 @@
 name = "oss-sdk-rust"
 version = "0.1.0"
 edition = "2024"
+license = "Apache-2.0"
+description = "Unofficial Rust SDK for Alibaba Cloud OSS (Object Storage Service)"
+repository = "https://github.com/lsewcx/oss-sdk-rust"
 
 [dependencies]
