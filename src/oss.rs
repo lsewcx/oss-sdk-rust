@@ -1,3 +1,5 @@
+mod bucket;
+
 use std::collections::BTreeMap;
 
 use crate::utils::auth;
@@ -32,13 +34,6 @@ impl Oss {
     pub fn with_endpoint(mut self, endpoint: impl Into<String>) -> Self {
         self.endpoint = endpoint.into();
         self
-    }
-
-    /// ListBuckets（GET /），服务级请求，常用于验证 AK/SK 和签名链路
-    pub async fn list_buckets(&self) -> Result<reqwest::Response, reqwest::Error> {
-        let url = format!("https://{}/", self.endpoint);
-        self.send(reqwest::Method::GET, "/", &url, BTreeMap::new(), None)
-            .await
     }
 
     /// 通用签名请求：url 决定实际发往哪，canonical_path 始终按 /{bucket}/{key} 规则传
