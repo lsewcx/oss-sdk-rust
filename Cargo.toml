@@ -9,5 +9,7 @@ repository = "https://github.com/lsewcx/oss-sdk-rust"
 [dependencies]
 chrono = "0.4.45"
 hmac = "0.13.0"
+reqwest = "0.13.5"
 sha2 = "0.11.0"
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1.44"
