@@ -7,3 +7,7 @@ description = "Unofficial Rust SDK for Alibaba Cloud OSS (Object Storage Service
 repository = "https://github.com/lsewcx/oss-sdk-rust"
 
 [dependencies]
+chrono = "0.4.45"
+hmac = "0.13.0"
+sha2 = "0.11.0"
+tracing = "0.1.44"
