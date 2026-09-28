@@ -41,6 +41,7 @@ impl Oss {
         &self,
         method: reqwest::Method,
         canonical_path: &str,
+        query: &str,
         url: &str,
         headers: BTreeMap<String, String>,
         body: Option<String>,
@@ -51,7 +52,7 @@ impl Oss {
             &self.region,
             method.as_str(),
             canonical_path,
-            "",
+            query,
             &[],
             headers,
         );
