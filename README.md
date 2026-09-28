@@ -5,7 +5,7 @@
 > [!IMPORTANT]
 > **非官方项目。** 本项目由社区独立开发，与阿里云（Alibaba Cloud）及其关联公司无任何关系，不代表官方立场，也未获官方背书。issue / PR 请提到本仓库，不要去官方仓库。
 >
-> **状态：早期开发中。** 当前仓库只有 crate 骨架（`src/lib.rs` + 空的 `src/oss.rs`），**尚未实现任何 OSS API**。下文的「功能范围」是路线图而非现状；示例代码是目标 API，现在编译不过。
+> **状态：早期开发中。** 已实现 OSS Signature V4（Authorization Header 签名）和最小客户端：`Oss::new` / `with_endpoint`、`list_buckets`、`get_bucket_acl`、`is_bucket_exist`，附 9 个单元测试（含官方 canonical request 向量和独立推导的签名向量）。Bucket 写入类操作、Object、分片上传与预签名尚未实现；「功能范围」中未勾选的条目仍为路线图。
 
 ---
 
@@ -26,11 +26,18 @@
 - **错误可诊断**：把 OSS 的 `ErrorCode` / `RequestId` / HTTP 状态还原成结构化错误，便于排障与重试判定。
 - **默认安全**：签名、时钟偏移、重试与超时行为显式可见，不藏在黑盒里。
 
-## 功能范围（路线图）
+## 功能范围
 
-- [ ] **客户端与配置**：AccessKey / STS 临时凭证、region + endpoint、自定义域名（CNAME）、代理、超时与重试
-- [ ] **签名**：V1、V4（含 URL 预签名）
-- [ ] **Bucket**：创建 / 列举 / 删除 / 获取信息（含 region、存储类型、ACL）
+已完成：
+
+- [x] **V4 签名**：canonical request、string-to-sign、签名密钥派生、`Authorization` 头生成
+- [x] **Bucket 只读操作**：`list_buckets`（GET /）、`get_bucket_acl`（GET /?acl）、`is_bucket_exist`
+
+路线图：
+
+- [ ] **客户端与配置**：STS 临时凭证、自定义域名（CNAME）、代理、超时与重试
+- [ ] **签名**：V1、URL 预签名
+- [ ] **Bucket 写操作**：创建 / 删除 / 获取信息
 - [ ] **Object 基础**：`put` / `get` / `head` / `delete` / `copy` / `list`（含分页与前缀过滤）
 - [ ] **高级上传**：分片上传（multipart）、断点续传、并发分片
 - [ ] **元数据与访问控制**：自定义元数据、Object ACL、标签、存储类型转换
@@ -38,29 +45,37 @@
 - [ ] **流式读写**：`AsyncRead` / `AsyncWrite` 与 bytes 缓冲双路径，避免整对象入内存
 - [ ] **可选特性**：`blocking`（同步 API）、`serde`（结构体序列化）、按需子模块裁剪
 
-## 目标 API（尚未实现，仅示意形态）
+## 快速开始（已实现）
 
 ```rust
-use oss_sdk_rust::{Client, Config};
+use oss_sdk_rust::Oss;
 
 #[tokio::main]
-async fn main() -> Result<(), oss_sdk_rust::Error> {
-    let client = Client::new(Config {
-        access_key_id: std::env::var("OSS_ACCESS_KEY_ID").unwrap(),
-        access_key_secret: std::env::var("OSS_ACCESS_KEY_SECRET").unwrap(),
-        endpoint: "oss-cn-hangzhou.aliyuncs.com".into(),
-        ..Default::default()
-    });
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let oss = Oss::new(
+        std::env::var("OSS_ACCESS_KEY_ID")?,
+        std::env::var("OSS_ACCESS_KEY_SECRET")?,
+        std::env::var("OSS_REGION").unwrap_or_else(|_| "cn-hangzhou".to_string()),
+    );
 
-    client.put_object("my-bucket", "hello.txt", b"hello oss".to_vec()).await?;
+    // endpoint 默认 oss-{region}.aliyuncs.com，可用 with_endpoint 覆盖
+    let resp = oss.list_buckets().await?;
+    println!("status: {}", resp.status());
 
-    let bytes = client.get_object("my-bucket", "hello.txt").await?;
+    let exists = oss.is_bucket_exist("my-bucket").await?;
+    println!("exists: {exists}");
 
-    let url = client.presign_get("my-bucket", "hello.txt", std::time::Duration::from_secs(600))?;
-
-    let _ = (bytes, url);
     Ok(())
 }
+```
+
+`examples/` 下有可直接运行的版本：
+
+```bash
+export OSS_ACCESS_KEY_ID=...
+export OSS_ACCESS_KEY_SECRET=...
+export OSS_REGION=cn-hangzhou
+cargo run --example list_buckets
 ```
 
 ## 构建与测试
@@ -69,7 +84,8 @@ async fn main() -> Result<(), oss_sdk_rust::Error> {
 
 ```bash
 cargo build
-cargo test
+cargo test        # 9 个单元测试：V4 签名向量、Authorization 拼接、错误码提取
+cargo clippy --all-targets
 ```
 
 ## 认证与配置
@@ -80,8 +96,9 @@ cargo test
 | --- | --- |
 | `OSS_ACCESS_KEY_ID` | AccessKey ID |
 | `OSS_ACCESS_KEY_SECRET` | AccessKey Secret |
-| `OSS_SESSION_TOKEN` | STS 临时凭证的 SecurityToken（仅临时授权时需要） |
-| `OSS_ENDPOINT` | 例如 `oss-cn-hangzhou.aliyuncs.com` |
+| `OSS_REGION` | 地域，例如 `cn-hangzhou`；默认 endpoint 为 `oss-{region}.aliyuncs.com`，可用 `Oss::with_endpoint` 覆盖 |
+
+STS 临时凭证（`OSS_SESSION_TOKEN`）与自定义 endpoint 环境变量尚未实现。
 
 AccessKey 请在阿里云控制台用 RAM 子账号创建，并最小化授权。主账号 AccessKey 权限过大，不建议使用。
 
